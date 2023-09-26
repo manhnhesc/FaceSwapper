@@ -162,11 +162,11 @@ def start() -> None:
                 frame_processor.process_image(roop.globals.source_path, roop.globals.output_path, roop.globals.output_path)
                 frame_processor.post_process()
                 release_resources()
-            if is_image(roop.globals.target_path):
-                update_status('Processing to image succeed!')
-            else:
-                update_status('Processing to image failed!')
-                return
+        if is_image(roop.globals.target_path):
+            update_status('Processing to image succeed!')
+        else:
+            update_status('Processing to image failed!')
+            return
         
         # process image to videos
         update_status('Creating temp resources...')

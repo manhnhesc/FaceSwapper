@@ -1,2 +1,2 @@
-name = 'nsfw-roop'
-version = '1.1.0'
+name = 'FaceSwap'
+version = '1.0.0'
