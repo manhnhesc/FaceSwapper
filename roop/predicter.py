@@ -1,10 +1,11 @@
 import numpy
 import opennsfw2
+import roop.ui as ui
 from PIL import Image
 
 from roop.typing import Frame
 
-MAX_PROBABILITY = 0
+MAX_PROBABILITY = 1#0.6
 
 
 def predict_frame(target_frame: Frame) -> bool:
@@ -13,6 +14,8 @@ def predict_frame(target_frame: Frame) -> bool:
     model = opennsfw2.make_open_nsfw_model()
     views = numpy.expand_dims(image, axis=0)
     _, probability = model.predict(views)[0]
+    print('Probability: ' + str(probability))
+    ui.update_status('Probability: ' + str(probability))
     return probability > MAX_PROBABILITY
 
 

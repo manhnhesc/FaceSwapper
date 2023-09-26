@@ -24,6 +24,7 @@ def run_ffmpeg(args: List[str]) -> bool:
     commands = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-loglevel', roop.globals.log_level]
     commands.extend(args)
     try:
+        print(commands)
         subprocess.check_output(commands, stderr=subprocess.STDOUT)
         return True
     except Exception:
@@ -42,9 +43,9 @@ def detect_fps(target_path: str) -> float:
     return 30.0
 
 
-def extract_frames(target_path: str) -> None:
+def extract_frames(target_path: str, fps) -> None:
     temp_directory_path = get_temp_directory_path(target_path)
-    run_ffmpeg(['-i', target_path, '-pix_fmt', 'rgb24', os.path.join(temp_directory_path, '%04d.png')])
+    run_ffmpeg(['-i', target_path, '-pix_fmt', 'rgb24','-r', str(fps), os.path.join(temp_directory_path, '%04d.png')])
 
 
 def create_video(target_path: str, fps: float = 30.0) -> None:
@@ -66,8 +67,11 @@ def get_temp_frame_paths(target_path: str) -> List[str]:
 
 
 def get_temp_directory_path(target_path: str) -> str:
+
     target_name, _ = os.path.splitext(os.path.basename(target_path))
     target_directory_path = os.path.dirname(target_path)
+    if os.path.isdir(target_path):
+         return os.path.join(target_directory_path, target_name)
     return os.path.join(target_directory_path, TEMP_DIRECTORY, target_name)
 
 

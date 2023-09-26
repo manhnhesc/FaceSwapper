@@ -4,7 +4,7 @@ import customtkinter as ctk
 from typing import Callable, Tuple
 import cv2
 from PIL import Image, ImageOps
-
+import random
 import roop.globals
 import roop.metadata
 from roop.face_analyser import get_one_face
@@ -82,14 +82,18 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     many_faces_switch = ctk.CTkSwitch(root, text='Many faces', variable=many_faces_value, cursor='hand2', command=lambda: setattr(roop.globals, 'many_faces', many_faces_value.get()))
     many_faces_switch.place(relx=0.6, rely=0.65)
 
+    target_dir_value = ctk.BooleanVar(value=roop.globals.target_dir)
+    target_dir_switch = ctk.CTkSwitch(root, text='File / Folder', variable=target_dir_value, cursor='hand2', command=lambda: setattr(roop.globals, 'target_dir', target_dir_value.get()))
+    target_dir_switch.place(relx=0.1, rely=0.7)
+
     start_button = ctk.CTkButton(root, text='Start', cursor='hand2', command=lambda: select_output_path(start))
-    start_button.place(relx=0.15, rely=0.75, relwidth=0.2, relheight=0.05)
+    start_button.place(relx=0.15, rely=0.8, relwidth=0.2, relheight=0.05)
 
     stop_button = ctk.CTkButton(root, text='Destroy', cursor='hand2', command=lambda: destroy())
-    stop_button.place(relx=0.4, rely=0.75, relwidth=0.2, relheight=0.05)
+    stop_button.place(relx=0.4, rely=0.8, relwidth=0.2, relheight=0.05)
 
     preview_button = ctk.CTkButton(root, text='Preview', cursor='hand2', command=lambda: toggle_preview())
-    preview_button.place(relx=0.65, rely=0.75, relwidth=0.2, relheight=0.05)
+    preview_button.place(relx=0.65, rely=0.8, relwidth=0.2, relheight=0.05)
 
     status_label = ctk.CTkLabel(root, text=None, justify='center')
     status_label.place(relx=0.1, rely=0.9, relwidth=0.8)
@@ -144,7 +148,13 @@ def select_target_path() -> None:
     global RECENT_DIRECTORY_TARGET
 
     PREVIEW.withdraw()
-    target_path = ctk.filedialog.askopenfilename(title='select an target image or video', initialdir=RECENT_DIRECTORY_TARGET)
+    target_path = None
+
+    if roop.globals.target_dir:
+        target_path = ctk.filedialog.askdirectory(title='select an target directory', initialdir=RECENT_DIRECTORY_TARGET)
+    else:
+        target_path = ctk.filedialog.askopenfilename(title='select an target image or video', initialdir=RECENT_DIRECTORY_TARGET)
+
     if is_image(target_path):
         roop.globals.target_path = target_path
         RECENT_DIRECTORY_TARGET = os.path.dirname(roop.globals.target_path)
@@ -155,6 +165,10 @@ def select_target_path() -> None:
         RECENT_DIRECTORY_TARGET = os.path.dirname(roop.globals.target_path)
         video_frame = render_video_preview(target_path, (200, 200))
         target_label.configure(image=video_frame)
+    elif os.path.isdir(target_path):
+        roop.globals.target_path = target_path
+        RECENT_DIRECTORY_TARGET = os.path.dirname(roop.globals.target_path)
+        target_label.configure(text=roop.globals.target_path)
     else:
         roop.globals.target_path = None
         target_label.configure(image=None)
@@ -164,16 +178,18 @@ def select_output_path(start: Callable[[], None]) -> None:
     global RECENT_DIRECTORY_OUTPUT
 
     if is_image(roop.globals.target_path):
-        output_path = ctk.filedialog.asksaveasfilename(title='save image output file', defaultextension='.png', initialfile='output.png', initialdir=RECENT_DIRECTORY_OUTPUT)
+        output_path = ctk.filedialog.asksaveasfilename(title='save image output file', defaultextension='.png', initialfile=f'{random.randrange(1000000000000,9999999999999)}.png', initialdir=RECENT_DIRECTORY_OUTPUT)
     elif is_video(roop.globals.target_path):
-        output_path = ctk.filedialog.asksaveasfilename(title='save video output file', defaultextension='.mp4', initialfile='output.mp4', initialdir=RECENT_DIRECTORY_OUTPUT)
+        output_path = ctk.filedialog.asksaveasfilename(title='save video output file', defaultextension='.mp4', initialfile=f'{random.randrange(1000000000000,9999999999999)}.mp4', initialdir=RECENT_DIRECTORY_OUTPUT)
     else:
         output_path = None
     if output_path:
         roop.globals.output_path = output_path
         RECENT_DIRECTORY_OUTPUT = os.path.dirname(roop.globals.output_path)
         start()
-
+    else:
+        if os.path.isdir(roop.globals.target_path):
+            start()
 
 def render_image_preview(image_path: str, size: Tuple[int, int]) -> ctk.CTkImage:
     image = Image.open(image_path)
@@ -201,8 +217,9 @@ def toggle_preview() -> None:
         PREVIEW.withdraw()
     elif roop.globals.source_path and roop.globals.target_path:
         init_preview()
-        update_preview()
-        PREVIEW.deiconify()
+        up = update_preview()
+        if up:
+            PREVIEW.deiconify()
 
 
 def init_preview() -> None:
@@ -215,17 +232,19 @@ def init_preview() -> None:
         preview_slider.set(0)
 
 
-def update_preview(frame_number: int = 0) -> None:
+def update_preview(frame_number: int = 0) -> bool:
     if roop.globals.source_path and roop.globals.target_path:
         temp_frame = get_video_frame(roop.globals.target_path, frame_number)
-        if predict_frame(temp_frame):
-            quit()
-        for frame_processor in get_frame_processors_modules(roop.globals.frame_processors):
-            temp_frame = frame_processor.process_frame(
-                get_one_face(cv2.imread(roop.globals.source_path)),
-                temp_frame
-            )
-        image = Image.fromarray(cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB))
-        image = ImageOps.contain(image, (PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT), Image.LANCZOS)
-        image = ctk.CTkImage(image, size=image.size)
-        preview_label.configure(image=image)
+        if not predict_frame(temp_frame):
+            for frame_processor in get_frame_processors_modules(roop.globals.frame_processors):
+                temp_frame = frame_processor.process_frame(
+                    get_one_face(cv2.imread(roop.globals.source_path)),
+                    temp_frame
+                )
+            image = Image.fromarray(cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB))
+            image = ImageOps.contain(image, (PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT), Image.LANCZOS)
+            image = ctk.CTkImage(image, size=image.size)
+            preview_label.configure(image=image)
+            return True
+        else:
+            return False
